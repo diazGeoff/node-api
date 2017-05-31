@@ -1,9 +1,11 @@
 var express = require('express');
 var validator = require('express-validator');
 var validatorServices = require('./services/validator-services');
+var db = require('./services/db');
 var bodyParser = require('body-parser');
 var jwt = require('jsonwebtoken');
 var JWTExpress = require('express-jwt');
+var mongoClient = require('mongodb').MongoClient;
 var secret = 'thisisasecret';
 var app = express();
 
@@ -15,6 +17,13 @@ app.use(validator({
 		}
 	}
 }));
+
+mongoClient.connect('mongodb://localhost:9001/node-api', (err, db) => {
+	if (!err) 
+		return app.locals.database = db;
+	else 
+		console.log(err);
+});
 
 app.use(JWTExpress({
 	'secret': secret	
@@ -33,25 +42,29 @@ app.use((err, req, res, next) => {
 
 
 app
-	.post('/login', (req, res) => {
+	.post('/login', (req, res) => {		
 		if ( req.body.username === 'demo' && req.body.password === 'demo' ) {
 			let token = jwt.sign({
 				'name': 'HyperStacks',
 				'address': 'USTP'
-			}, secret, { expiresIn: 60 * 60 });
+			}, secret, { expiresIn: 60 * 60 });			
 
-			return res.send(token);
-		} 
+			return res.json( {
+				'token': token
+			} );
+		}
 
 		return res.status(401).json( {
-			'err': 'Invalid User'
+			'message': 'Invalid User'
 		} );
 	});
 
 app
 	.post('/check', (req, res) => {
 
-		return res.send('Authorized');
+		return res.json({
+			"authorized": true
+		});
 	});
 
 app
@@ -61,10 +74,22 @@ app
 		validatorServices.registerValidatorSchema(req);
 
 		req.getValidationResult().then(results => {
-			res.json(results.array());
+			if (!results.isEmpty()) {
+				return res.status(402).json(results.array());
+			}
+
+			db.insert(req.app.locals.database, 'users', req.body)
+				.then( result => {
+					return res.json(result);
+				} )
+				.catch( err => {
+					return res.status(403).json(err);
+				} );
 		});
 	});
 
 app.listen( 8080 , () => {
 	console.log('Running on port 8080');
 } );
+
+module.exports = app;
