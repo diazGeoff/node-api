@@ -4,7 +4,7 @@
   "description": "A node registration API",
   "main": "index.js",
   "scripts": {
-    "prestart": "mongod --dbpath ./db --port 9001 --fork --logpath /dev/null",
+    "prestart": "mongod --dbpath ./db --fork --logpath /dev/null",
     "start": "node ./index.js",
     "test": "node ./node_modules/mocha/bin/mocha ./tests/test.js",
     "postinstall": "mkdir db"
