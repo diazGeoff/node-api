@@ -9,7 +9,7 @@ module.exports = {
 			request.checkBody(key, `${key} is not string`).isString();
 		});
 	},
-	'registerValidatorSchema': request => {
+	'schemaValidation': request => {
 		request.checkBody({
 			'email': {			
 				'isEmail': {

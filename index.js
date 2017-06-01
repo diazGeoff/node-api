@@ -6,6 +6,7 @@ var bodyParser = require('body-parser');
 var jwt = require('jsonwebtoken');
 var JWTExpress = require('express-jwt');
 var mongoClient = require('mongodb').MongoClient;
+var bcrypt = require('bcrypt-nodejs');
 var secret = 'thisisasecret';
 var app = express();
 
@@ -18,7 +19,7 @@ app.use(validator({
 	}
 }));
 
-mongoClient.connect('mongodb://localhost:9001/node-api', (err, db) => {
+mongoClient.connect('mongodb://localhost:27017/node-api', (err, db) => {
 	if (!err) 
 		return app.locals.database = db;
 	else 
@@ -42,28 +43,60 @@ app.use((err, req, res, next) => {
 
 
 app
-	.post('/login', (req, res) => {		
-		if ( req.body.username === 'demo' && req.body.password === 'demo' ) {
-			let token = jwt.sign({
-				'name': 'HyperStacks',
-				'address': 'USTP'
-			}, secret, { expiresIn: 60 * 60 });			
+	.post('/login', (req, res) => {
+		db.find( req.app.locals.database, 'users', { 'email': req.body.email } )
+			.then( user => {
 
-			return res.json( {
-				'token': token
-			} );
-		}
+				if ( bcrypt.compareSync(req.body.password, user.password) ) {
+					let token = jwt.sign( {
+						'email': user.email
+					} , secret, { expiresIn: 60 * 60 });
 
-		return res.status(401).json( {
-			'message': 'Invalid User'
-		} );
+					return res.json( {
+						'token': token
+					} );
+				}
+
+				return res.status(401).json( {
+					'message': 'Invalid Password'
+				} );
+			} )
+			.catch( err => {
+				return res.status(404).json( {
+					'message': 'User Not Found'
+				} );
+			} );		
 	});
 
 app
 	.post('/check', (req, res) => {
 
 		return res.json({
-			"authorized": true
+			"authorized": true,
+			"user": req.user
+		});
+	});
+
+app
+	.post('/update', (req, res) => {
+		req.body.email = req.user.email;
+		validatorServices.checkNotEmpty(req, [ 'email', 'firstname', 'lastname', 'password' ]);
+		validatorServices.checkIsString(req, [ 'email', 'firstname', 'lastname', 'password' ]);
+		validatorServices.schemaValidation(req);
+
+		req.getValidationResult().then(results => {
+			if (!results.isEmpty()) {
+				return res.status(400).json(results.array());
+			}
+			req.body.password = bcrypt.hashSync(req.body.password);
+
+			db.update(req.app.locals.database, 'users', {'email': req.body.email}, req.body)
+				.then( updatedData => {
+					return res.json( updatedData );
+				} )
+				.catch( err => {
+					return res.status(409).json(err);
+				} );
 		});
 	});
 
@@ -71,19 +104,22 @@ app
 	.post('/register', (req, res) => {		
 		validatorServices.checkNotEmpty(req, [ 'email', 'firstname', 'lastname', 'password' ]);
 		validatorServices.checkIsString(req, [ 'email', 'firstname', 'lastname', 'password' ]);
-		validatorServices.registerValidatorSchema(req);
+		validatorServices.schemaValidation(req);
 
 		req.getValidationResult().then(results => {
 			if (!results.isEmpty()) {
-				return res.status(402).json(results.array());
+				return res.status(400).json(results.array());
 			}
 
-			db.insert(req.app.locals.database, 'users', req.body)
+			req.body.password = bcrypt.hashSync(req.body.password);
+
+			db.insert(req.app.locals.database, 'users', {'email': req.body.email}, req.body)
 				.then( result => {
+					result.message = "Registered";
 					return res.json(result);
 				} )
 				.catch( err => {
-					return res.status(403).json(err);
+					return res.status(409).json(err);
 				} );
 		});
 	});
