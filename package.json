@@ -6,7 +6,8 @@
   "scripts": {
     "prestart": "mongod --dbpath ./db --port 9001 --fork --logpath /dev/null",
     "start": "node ./index.js",
-    "test": "./node_modules/mocha/bin/mocha ./tests/test.js"
+    "test": "node ./node_modules/mocha/bin/mocha ./tests/test.js",
+    "postinstall": "mkdir db"
   },
   "keywords": [
     "api"
